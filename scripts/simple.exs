@@ -295,8 +295,10 @@ defmodule Session do
   end
 end
 
-{:ok, sess} = Session.start_link('127.0.0.1', 4040)
-{:ok, client} = Session.start_link('127.0.0.1', 4040)
+port = Application.fetch_env!(:mini_bus, :port)
+
+{:ok, sess} = Session.start_link('127.0.0.1', port)
+{:ok, client} = Session.start_link('127.0.0.1', port)
 
 Session.ping(sess, "test") |> IO.inspect(label: "ping")
 Session.ping(client, "test") |> IO.inspect(label: "ping")
