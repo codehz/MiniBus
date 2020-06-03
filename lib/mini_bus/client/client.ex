@@ -32,7 +32,7 @@ defmodule MiniBus.Client do
           | {:timeout, :infinity | non_neg_integer}
         ]) :: :ignore | {:error, any} | {:ok, pid}
   def start_link(socket, options \\ []) do
-    GenServer.start_link(__MODULE__, socket, [{:debug, [:trace]} | options])
+    GenServer.start_link(__MODULE__, socket, options)
   end
 
   @spec get(pid, key) :: {:error, :not_found} | {:ok, any}

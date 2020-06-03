@@ -11,7 +11,7 @@ defmodule MiniBus.Client.RecvQueue do
 
   @spec start_link(pid, port) :: :ignore | {:error, any} | {:ok, pid}
   def start_link(send_pid, socket) do
-    GenServer.start_link(__MODULE__, {self(), send_pid, socket}, debug: [:trace])
+    GenServer.start_link(__MODULE__, {self(), send_pid, socket}, [])
   end
 
   @impl GenServer
