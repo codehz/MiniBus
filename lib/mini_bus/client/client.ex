@@ -80,7 +80,7 @@ defmodule MiniBus.Client do
   @impl GenServer
   def handle_info({:event, rid, value}, state) do
     %__MODULE__{send_pid: send_pid} = state
-    MiniBus.Client.SendQueue.send_packet(send_pid, rid, {:ok, value})
+    MiniBus.Client.SendQueue.send_packet(send_pid, rid, "NEXT", {:ok, value})
     {:noreply, state}
   end
 

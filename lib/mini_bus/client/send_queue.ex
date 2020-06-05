@@ -13,9 +13,9 @@ defmodule MiniBus.Client.SendQueue do
     GenServer.cast(pid, "OK")
   end
 
-  @spec send_packet(pid, integer, :ok | {:error, atom} | {:ok, any}) :: :ok
-  def send_packet(pid, rid, packet) do
-    GenServer.cast(pid, [<<rid::32>> | encode_packet(packet)])
+  @spec send_packet(pid, integer, <<_::32>>, :ok | {:error, atom} | {:ok, any}) :: :ok
+  def send_packet(pid, rid, command, packet) when byte_size(command) == 4 do
+    GenServer.cast(pid, [<<rid::32, command::binary>> | encode_packet(packet)])
   end
 
   @impl GenServer

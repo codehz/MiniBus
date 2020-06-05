@@ -101,9 +101,9 @@ defmodule PacketParser do
 
   defp decode_packet() do
     monad do
-      <<rid::32, flag::8>> <- read_length(5)
+      <<rid::32, type::binary-size(4), flag::8>> <- read_length(9)
       data <- decode_packet_flag(flag)
-      return({rid, data})
+      return({rid, type, data})
     end
   end
 
@@ -126,8 +126,8 @@ defmodule PacketParserProc do
 
   @impl GenServer
   def handle_continue(buffer, {pid, socket}) do
-    with {:ok, {rid, data}, buffer} <- PacketParser.run(socket, buffer) do
-      send(pid, {:packet, rid, data})
+    with {:ok, {rid, type, data}, buffer} <- PacketParser.run(socket, buffer) do
+      send(pid, {:packet, rid, type, data})
       {:noreply, {pid, socket}, {:continue, buffer}}
     else
       {:error, e, _buffer} ->
@@ -229,7 +229,6 @@ defmodule Session do
 
   def observe(sess, callback, bucket, key) do
     GenServer.call(
-
       sess,
       {:event, callback, "OBSERVE", [encode_binary(bucket), encode_binary(key)]}
     )
@@ -261,36 +260,44 @@ defmodule Session do
   end
 
   @impl GenServer
-  def handle_info({:packet, rid, data}, state) do
+  def handle_info({:packet, rid, type, data}, state) do
     %__MODULE__{reqmap: reqmap} = state
 
-    with %{^rid => value} <- reqmap do
-      case value do
-        {:simple, from} ->
-          GenServer.reply(from, data)
-          reqmap = Map.delete(reqmap, rid)
-          {:noreply, put_in(state.reqmap, reqmap)}
-
-        {:event, callback, from} ->
-          GenServer.reply(from, data)
-
-          if match?(:ok, data) or match?({:ok, _}, data) do
-            {:noreply, put_in(state.reqmap[rid], {:event, callback})}
-          else
-            reqmap = Map.delete(reqmap, rid)
-            {:noreply, put_in(state.reqmap, reqmap)}
-          end
-
-        {:event, callback} ->
-          with {:ok, payload} <- data do
-            callback.(payload)
-            {:noreply, state}
-          else
-            {:error, _reason} ->
+    case type do
+      "RESP" ->
+        with %{^rid => value} <- reqmap do
+          case value do
+            {:simple, from} ->
+              GenServer.reply(from, data)
               reqmap = Map.delete(reqmap, rid)
               {:noreply, put_in(state.reqmap, reqmap)}
+
+            {:event, callback, from} ->
+              GenServer.reply(from, data)
+
+              if match?(:ok, data) or match?({:ok, _}, data) do
+                {:noreply, put_in(state.reqmap[rid], {:event, callback})}
+              else
+                reqmap = Map.delete(reqmap, rid)
+                {:noreply, put_in(state.reqmap, reqmap)}
+              end
           end
-      end
+        end
+
+      "NEXT" ->
+        with %{^rid => value} <- reqmap do
+          case value do
+            {:event, callback} ->
+              with {:ok, payload} <- data do
+                callback.(payload)
+                {:noreply, state}
+              else
+                {:error, _reason} ->
+                  reqmap = Map.delete(reqmap, rid)
+                  {:noreply, put_in(state.reqmap, reqmap)}
+              end
+          end
+        end
     end
   end
 end

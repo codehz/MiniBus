@@ -172,7 +172,7 @@ defmodule MiniBus.Client.RecvQueue do
     end
   end
 
-  defp send_packet(payload, send_pid, rid) do
-    MiniBus.Client.SendQueue.send_packet(send_pid, rid, payload)
+  defp send_packet(payload, send_pid, rid, command \\ "RESP") when byte_size(command) == 4 do
+    MiniBus.Client.SendQueue.send_packet(send_pid, rid, command, payload)
   end
 end
