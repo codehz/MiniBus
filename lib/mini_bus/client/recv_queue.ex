@@ -149,6 +149,16 @@ defmodule MiniBus.Client.RecvQueue do
   defp process_command(
          send_pid,
          pid,
+         {rid, "CALL", BitString.match(short_binary: :bucket, short_binary: :key, binary: :value)}
+       ) do
+    fn -> service_command(bucket, :request, [key, value]) end
+    |> proxy_pid(pid)
+    |> send_packet(send_pid, rid)
+  end
+
+  defp process_command(
+         send_pid,
+         pid,
          {rid, "OBSERVE", BitString.match(short_binary: :bucket, short_binary: :key)}
        ) do
     {:observe, rid, bucket, key} |> call_pid(pid) |> send_packet(send_pid, rid)
@@ -160,6 +170,14 @@ defmodule MiniBus.Client.RecvQueue do
          {rid, "LISTEN", BitString.match(short_binary: :bucket, short_binary: :key)}
        ) do
     {:listen, rid, bucket, key} |> call_pid(pid) |> send_packet(send_pid, rid)
+  end
+
+  defp process_command(
+         send_pid,
+         pid,
+         {rid, "RESPONSE", BitString.match(binary: :value)}
+       ) do
+    {:response, rid, value} |> call_pid(pid) |> send_packet(send_pid, rid)
   end
 
   @spec service_command(String.t(), atom, [any]) :: any

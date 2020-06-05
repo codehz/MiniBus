@@ -7,6 +7,7 @@ defmodule MiniBus.Client do
   typedstruct do
     field(:send_pid, pid(), enforce: true)
     field(:storage, %{Stirng.t() => binary}, enforce: true)
+    field(:req_map, %{integer => GenServer.from()}, default: %{})
   end
 
   defmacrop foreach_name(do: expression) do
@@ -53,6 +54,11 @@ defmodule MiniBus.Client do
   @spec keys(pid) :: {:ok, [key]}
   def keys(pid) do
     GenServer.call(pid, :keys)
+  end
+
+  @spec request(pid, key, value) :: {:error, :impossible}
+  def request(pid, key, value) do
+    GenServer.call(pid, {:request, key, value})
   end
 
   @spec ready(atom | pid | {atom, any} | {:via, atom, any}) :: :ok
@@ -226,7 +232,27 @@ defmodule MiniBus.Client do
   end
 
   @impl GenServer
-  def handle_call({flag, rid, bucket, key}, _from, state) when flag == :observe or flag == :listen do
+  def handle_call({:request, key, value}, from, state) do
+    %__MODULE__{send_pid: pid, req_map: req_map} = state
+    rid = select_rid(req_map)
+    MiniBus.Client.SendQueue.send_packet(pid, rid, "CALL", {:ok, {key, {:binary, value}}})
+    {:noreply, put_in(state.req_map[rid], from)}
+  end
+
+  @impl GenServer
+  def handle_call({:response, rid, value}, _from, state) do
+    %__MODULE__{req_map: req_map} = state
+    with %{^rid => target} <- req_map do
+      GenServer.reply(target, {:ok, value})
+      {:reply, :ok, put_in(state.req_map, Map.delete(req_map, rid))}
+    else
+      _ -> {:reply, {:error, :not_found}}
+    end
+  end
+
+  @impl GenServer
+  def handle_call({flag, rid, bucket, key}, _from, state)
+      when flag == :observe or flag == :listen do
     {:ok, _pid} = MiniBus.EventStream.listen({flag, bucket, key}, rid)
     {:reply, :ok, state}
   end
@@ -240,5 +266,15 @@ defmodule MiniBus.Client do
   def handle_cast(:ready, state) do
     MiniBus.Client.SendQueue.send_ready(state.send_pid)
     {:noreply, state}
+  end
+
+  defp select_rid(reqmap) do
+    condi = :rand.uniform(4_294_967_296)
+
+    if Map.has_key?(reqmap, condi) do
+      select_rid(reqmap)
+    else
+      condi
+    end
   end
 end
