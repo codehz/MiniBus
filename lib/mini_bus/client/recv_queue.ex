@@ -180,10 +180,22 @@ defmodule MiniBus.Client.RecvQueue do
     {:response, rid, value} |> call_pid(pid) |> send_packet(send_pid, rid)
   end
 
+  defp process_command(
+         send_pid,
+         pid,
+         {rid, "EXCEPTION", BitString.match(binary: :value)}
+       ) do
+    {:exception, rid, value} |> call_pid(pid) |> send_packet(send_pid, rid)
+  end
+
   @spec service_command(String.t(), atom, [any]) :: any
   defp service_command(bucket, method, args) do
     with {pid, module} <- MiniBus.ServiceRegistry.lookup(bucket) do
-      apply(module, method, [pid | args])
+      if pid == self() do
+        {:error, :recursive}
+      else
+        apply(module, method, [pid | args])
+      end
     else
       _ ->
         {:error, :bucket_not_found}

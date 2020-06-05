@@ -143,7 +143,7 @@ defmodule Session do
   use GenServer
   import Bitwise
 
-  defstruct socket: nil, reqmap: %{}
+  defstruct socket: nil, reqmap: %{}, handlers: %{}
 
   def start_link(ip, port) do
     {:ok, socket} = :gen_tcp.connect(ip, port, [:binary, packet: :raw, active: false])
@@ -181,6 +181,10 @@ defmodule Session do
     else
       condi
     end
+  end
+
+  def register_handler(sess, name, handler) do
+    GenServer.call(sess, {:register, name, handler})
   end
 
   def ping(sess, payload) do
@@ -227,6 +231,10 @@ defmodule Session do
     GenServer.call(sess, {:simple, "KEYS", [encode_binary(bucket)]})
   end
 
+  def call(sess, bucket, key, value) do
+    GenServer.call(sess, {:simple, "CALL", [encode_binary(bucket), encode_binary(key), value]})
+  end
+
   def observe(sess, callback, bucket, key) do
     GenServer.call(
       sess,
@@ -239,6 +247,11 @@ defmodule Session do
       sess,
       {:event, callback, "LISTEN", [encode_binary(bucket), encode_binary(key)]}
     )
+  end
+
+  @impl GenServer
+  def handle_call({:register, name, handler}, _from, state) do
+    {:reply, :ok, put_in(state.handlers[name], handler)}
   end
 
   @impl GenServer
@@ -261,7 +274,7 @@ defmodule Session do
 
   @impl GenServer
   def handle_info({:packet, rid, type, data}, state) do
-    %__MODULE__{reqmap: reqmap} = state
+    %__MODULE__{reqmap: reqmap, handlers: handlers} = state
 
     case type do
       "RESP" ->
@@ -282,6 +295,8 @@ defmodule Session do
                 {:noreply, put_in(state.reqmap, reqmap)}
               end
           end
+        else
+          _ -> {:noreply, state}
         end
 
       "NEXT" ->
@@ -297,7 +312,25 @@ defmodule Session do
                   {:noreply, put_in(state.reqmap, reqmap)}
               end
           end
+        else
+          _ -> {:noreply, state}
         end
+
+      "CALL" ->
+        {:ok, {key, {:binary, value}}} = data
+        %__MODULE__{socket: socket} = state
+
+        with %{^key => handler} <- handlers do
+          res = handler.(value)
+          pkt = encode_packet(rid, "RESPONSE", res)
+          :gen_tcp.send(socket, pkt)
+        else
+          _ ->
+            pkt = encode_packet(rid, "EXCEPTION", "not defined")
+            :gen_tcp.send(socket, pkt)
+        end
+
+        {:noreply, state}
     end
   end
 end
@@ -307,6 +340,7 @@ port = Application.fetch_env!(:mini_bus, :port)
 {:ok, sess} = Session.start_link('127.0.0.1', port)
 {:ok, client} = Session.start_link('127.0.0.1', port)
 
+Session.register_handler(sess, "test", fn _ -> "boom" end)
 Session.ping(sess, "test") |> IO.inspect(label: "ping")
 Session.ping(client, "test") |> IO.inspect(label: "ping")
 Session.observe(client, &IO.inspect(&1, label: "new client"), "registry", "sess")
@@ -326,3 +360,5 @@ Session.get(sess, "registry", "sess") |> IO.inspect(label: "get")
 
 Session.get(client, "sess", "id") |> IO.inspect(label: "get")
 Session.set(client, "shared", "key", "test from client") |> IO.inspect(label: "set")
+Session.call(client, "sess", "test", "boom") |> IO.inspect(label: "call")
+Session.call(sess, "sess", "test", "boom") |> IO.inspect(label: "call")

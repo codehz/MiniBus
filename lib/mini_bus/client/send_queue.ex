@@ -105,7 +105,7 @@ defmodule MiniBus.Client.SendQueue do
     [1 | payload |> encode_data()]
   end
 
-  defp encode_packet({:error, e}) when is_atom(e) do
+  defp encode_packet({:error, e}) do
     [255 | e |> encode_data]
   end
 end

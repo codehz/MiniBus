@@ -243,7 +243,18 @@ defmodule MiniBus.Client do
   def handle_call({:response, rid, value}, _from, state) do
     %__MODULE__{req_map: req_map} = state
     with %{^rid => target} <- req_map do
-      GenServer.reply(target, {:ok, value})
+      GenServer.reply(target, {:ok, {:binary, value}})
+      {:reply, :ok, put_in(state.req_map, Map.delete(req_map, rid))}
+    else
+      _ -> {:reply, {:error, :not_found}}
+    end
+  end
+
+  @impl GenServer
+  def handle_call({:exception, rid, value}, _from, state) do
+    %__MODULE__{req_map: req_map} = state
+    with %{^rid => target} <- req_map do
+      GenServer.reply(target, {:error, value})
       {:reply, :ok, put_in(state.req_map, Map.delete(req_map, rid))}
     else
       _ -> {:reply, {:error, :not_found}}
