@@ -235,7 +235,7 @@ defmodule MiniBus.Client do
   def handle_call({:request, key, value}, from, state) do
     %__MODULE__{send_pid: pid, req_map: req_map} = state
     rid = select_rid(req_map)
-    MiniBus.Client.SendQueue.send_packet(pid, rid, "CALL", {:ok, {key, {:binary, value}}})
+    MiniBus.Client.SendQueue.send_packet(pid, rid, "CALL", {:ok, [key, value]})
     {:noreply, put_in(state.req_map[rid], from)}
   end
 
@@ -243,7 +243,7 @@ defmodule MiniBus.Client do
   def handle_call({:response, rid, value}, _from, state) do
     %__MODULE__{req_map: req_map} = state
     with %{^rid => target} <- req_map do
-      GenServer.reply(target, {:ok, {:binary, value}})
+      GenServer.reply(target, {:ok, value})
       {:reply, :ok, put_in(state.req_map, Map.delete(req_map, rid))}
     else
       _ -> {:reply, {:error, :not_found}}

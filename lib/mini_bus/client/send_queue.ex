@@ -46,53 +46,31 @@ defmodule MiniBus.Client.SendQueue do
     end
   end
 
-  defp encode_binary(str), do: [encode_varuint(byte_size(str)) | str]
+  defp encode_binary(str) when is_binary(str) do
+    [encode_varuint(byte_size(str)) | str]
+  end
+
+  defp encode_binary(iodata) do
+    [encode_varuint(IO.iodata_length(iodata)) | iodata]
+  end
 
   defp encode_varuint(val) when val < 128, do: [val]
   defp encode_varuint(val), do: [<<1::1, val::7>> | encode_varuint(val >>> 7)]
 
-  defp encode_data(data)
-
-  defp encode_data(false), do: [0]
-  defp encode_data(true), do: [1]
-
-  defp encode_data(data) when is_atom(data) do
-    [2 | data |> Atom.to_string() |> encode_binary()]
-  end
-
-  defp encode_data(data) when is_binary(data) do
-    [3 | data |> encode_binary()]
-  end
-
-  defp encode_data(data) when is_integer(data) do
-    if data >= 0 do
-      [4 | encode_varuint(data)]
-    else
-      [5 | encode_varuint(-data + 1)]
-    end
-  end
-
-  defp encode_data({:binary, data}) do
-    [6 | data |> encode_binary()]
-  end
-
   defp encode_data(data) when is_list(data) do
-    size = data |> length() |> encode_varuint()
-    contents = Enum.map(data, &encode_data/1)
-
-    [7, size | contents]
+    Enum.map(data, &encode_data/1) |> encode_binary()
   end
 
   defp encode_data(data) when is_tuple(data) do
-    list = Tuple.to_list(data)
-    size = list |> length() |> encode_varuint()
-    contents = Enum.map(list, &encode_data/1)
-
-    [8, size | contents]
+    Enum.map(Tuple.to_list(data), &encode_data/1)
   end
 
-  defp encode_data(data) do
-    [255 | data |> inspect() |> encode_binary()]
+  defp encode_data(data) when is_atom(data) do
+    data |> Atom.to_string() |> encode_binary()
+  end
+
+  defp encode_data(data) when is_binary(data) do
+    data |> encode_binary()
   end
 
   defp encode_packet(pkt)
@@ -106,6 +84,6 @@ defmodule MiniBus.Client.SendQueue do
   end
 
   defp encode_packet({:error, e}) do
-    [255 | e |> encode_data]
+    [255 | e |> encode_data()]
   end
 end

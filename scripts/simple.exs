@@ -3,98 +3,22 @@ defmodule PacketParser do
   import MiniBus.Socket.Utils
   use MiniBus.Utils.BitString
 
-  defp decode_list(n, data \\ [])
-
-  defp decode_list(0, data) do
-    monad do
-      return(data)
-    end
-  end
-
-  defp decode_list(n, data) do
-    monad do
-      type <- read_byte()
-      value <- decode_payload_data(type)
-      decode_list(n - 1, data ++ [value])
-    end
-  end
-
-  defp decode_payload_data(0) do
-    monad(do: return(false))
-  end
-
-  defp decode_payload_data(1) do
-    monad(do: return(true))
-  end
-
-  defp decode_payload_data(2) do
-    monad do
-      sym <- read_shortbinary()
-      return(:"#{sym}")
-    end
-  end
-
-  defp decode_payload_data(3) do
-    monad(do: read_dynbinary())
-  end
-
-  defp decode_payload_data(4) do
-    monad(do: read_dynlength())
-  end
-
-  defp decode_payload_data(5) do
-    monad do
-      ret <- read_dynlength()
-      return(-ret)
-    end
-  end
-
-  defp decode_payload_data(6) do
-    monad do
-      data <- read_dynbinary()
-      return({:binary, data})
-    end
-  end
-
-  defp decode_payload_data(7) do
-    monad do
-      length <- read_dynlength()
-      list <- decode_list(length)
-      return(list)
-    end
-  end
-
-  defp decode_payload_data(8) do
-    monad do
-      length <- read_dynlength()
-      list <- decode_list(length)
-      return(List.to_tuple(list))
-    end
-  end
-
-  defp decode_payload() do
-    monad do
-      flag <- read_byte()
-      decode_payload_data(flag)
-    end
-  end
-
   defp decode_packet_flag(0) do
     monad do
-      return(:ok)
+      return({:ok, nil})
     end
   end
 
   defp decode_packet_flag(1) do
     monad do
-      payload <- decode_payload()
-      return({:ok, payload})
+      payload <- read_dynbinary()
+      return({:ok, payload |> IO.inspect(label: "recv")})
     end
   end
 
   defp decode_packet_flag(255) do
     monad do
-      payload <- decode_payload()
+      payload <- read_dynbinary()
       return({:error, payload})
     end
   end
@@ -116,7 +40,7 @@ defmodule PacketParserProc do
   use GenServer
 
   def start_link(socket) do
-    GenServer.start_link(__MODULE__, {self(), socket}, debug: [:trace])
+    GenServer.start_link(__MODULE__, {self(), socket}, debug: [])
   end
 
   @impl GenServer
@@ -142,6 +66,7 @@ end
 defmodule Session do
   use GenServer
   import Bitwise
+  use MiniBus.Utils.BitString
 
   defstruct socket: nil, reqmap: %{}, handlers: %{}
 
@@ -149,7 +74,7 @@ defmodule Session do
     {:ok, socket} = :gen_tcp.connect(ip, port, [:binary, packet: :raw, active: false])
     :ok = :gen_tcp.send(socket, <<"MINIBUS", 0>>)
     {:ok, "OK"} = :gen_tcp.recv(socket, 2)
-    GenServer.start_link(__MODULE__, socket, debug: [:trace])
+    GenServer.start_link(__MODULE__, socket, debug: [])
   end
 
   @impl GenServer
@@ -188,65 +113,95 @@ defmodule Session do
   end
 
   def ping(sess, payload) do
-    GenServer.call(sess, {:simple, "PING", payload})
+    GenServer.call(sess, {:simple, "PING", payload, :binary})
   end
 
   def stop(sess) do
-    GenServer.call(sess, {:simple, "STOP", <<>>})
+    GenServer.call(sess, {:simple, "STOP", <<>>, nil})
   end
 
   def set_private(sess, key, value) do
-    GenServer.call(sess, {:simple, "SET PRIVATE", [encode_binary(key), value]})
+    GenServer.call(sess, {:simple, "SET PRIVATE", [encode_binary(key), value], nil})
   end
 
   def get_private(sess, key) do
-    GenServer.call(sess, {:simple, "GET PRIVATE", [encode_binary(key)]})
+    GenServer.call(sess, {:simple, "GET PRIVATE", [encode_binary(key)], :binary})
   end
 
   def del_private(sess, key) do
-    GenServer.call(sess, {:simple, "DEL PRIVATE", [encode_binary(key)]})
+    GenServer.call(sess, {:simple, "DEL PRIVATE", [encode_binary(key)], nil})
   end
 
   def acl(sess, key, type) do
-    GenServer.call(sess, {:simple, "ACL", [encode_binary(key), encode_binary(type)]})
+    GenServer.call(sess, {:simple, "ACL", [encode_binary(key), encode_binary(type)], nil})
   end
 
   def notify(sess, key, value) do
-    GenServer.call(sess, {:simple, "NOTIFY", [encode_binary(key), value]})
+    GenServer.call(sess, {:simple, "NOTIFY", [encode_binary(key), value], nil})
   end
 
   def set(sess, bucket, key, value) do
-    GenServer.call(sess, {:simple, "SET", [encode_binary(bucket), encode_binary(key), value]})
+    GenServer.call(
+      sess,
+      {:simple, "SET", [encode_binary(bucket), encode_binary(key), value], nil}
+    )
   end
 
   def del(sess, bucket, key) do
-    GenServer.call(sess, {:simple, "DEL", [encode_binary(bucket), encode_binary(key)]})
+    GenServer.call(sess, {:simple, "DEL", [encode_binary(bucket), encode_binary(key)], nil})
   end
 
   def get(sess, bucket, key) do
-    GenServer.call(sess, {:simple, "GET", [encode_binary(bucket), encode_binary(key)]})
+    GenServer.call(sess, {:simple, "GET", [encode_binary(bucket), encode_binary(key)], :binary})
   end
 
   def keys(sess, bucket) do
-    GenServer.call(sess, {:simple, "KEYS", [encode_binary(bucket)]})
+    GenServer.call(sess, {:simple, "KEYS", [encode_binary(bucket)], :keys})
   end
 
   def call(sess, bucket, key, value) do
-    GenServer.call(sess, {:simple, "CALL", [encode_binary(bucket), encode_binary(key), value]})
+    GenServer.call(
+      sess,
+      {:simple, "CALL", [encode_binary(bucket), encode_binary(key), value], :binary}
+    )
   end
 
   def observe(sess, callback, bucket, key) do
     GenServer.call(
       sess,
-      {:event, callback, "OBSERVE", [encode_binary(bucket), encode_binary(key)]}
+      {:event, callback, "OBSERVE", [encode_binary(bucket), encode_binary(key)], nil, :binary}
     )
   end
 
   def listen(sess, callback, bucket, key) do
     GenServer.call(
       sess,
-      {:event, callback, "LISTEN", [encode_binary(bucket), encode_binary(key)]}
+      {:event, callback, "LISTEN", [encode_binary(bucket), encode_binary(key)], nil, :binary}
     )
+  end
+
+  defp parse_payload(:binary, data) do
+    {:ok, data}
+  end
+
+  defp parse_payload(nil, nil) do
+    {:ok, nil}
+  end
+
+  defp parse_payload(nil, _data) do
+    {:error, :expect_nil}
+  end
+
+  defp parse_payload(:keys, data) do
+    parse_keys(data)
+  end
+
+  defp parse_keys(<<>>) do
+    []
+  end
+
+  defp parse_keys(BitString.match(short_binary: :acl, short_binary: :name, binary: :rest)) do
+    [{:"#{acl}", name} | parse_keys(rest)]
   end
 
   @impl GenServer
@@ -255,21 +210,21 @@ defmodule Session do
   end
 
   @impl GenServer
-  def handle_call({:simple, command, payload}, from, state) do
+  def handle_call({:simple, command, payload, spec}, from, state) do
     %__MODULE__{socket: socket, reqmap: reqmap} = state
     rid = select_rid(reqmap)
     pkt = encode_packet(rid, command, payload)
     :gen_tcp.send(socket, pkt)
-    {:noreply, put_in(state.reqmap[rid], {:simple, from})}
+    {:noreply, put_in(state.reqmap[rid], {:simple, from, spec})}
   end
 
   @impl GenServer
-  def handle_call({:event, callback, command, payload}, from, state) do
+  def handle_call({:event, callback, command, payload, spec, espec}, from, state) do
     %__MODULE__{socket: socket, reqmap: reqmap} = state
     rid = select_rid(reqmap)
     pkt = encode_packet(rid, command, payload)
     :gen_tcp.send(socket, pkt)
-    {:noreply, put_in(state.reqmap[rid], {:event, callback, from})}
+    {:noreply, put_in(state.reqmap[rid], {:event, callback, from, spec, espec})}
   end
 
   @impl GenServer
@@ -280,19 +235,23 @@ defmodule Session do
       "RESP" ->
         with %{^rid => value} <- reqmap do
           case value do
-            {:simple, from} ->
-              GenServer.reply(from, data)
+            {:simple, from, spec} ->
+              case data do
+                {:ok, payload} -> GenServer.reply(from, parse_payload(spec, payload))
+                {:error, e} -> GenServer.reply(from, {:error, parse_payload(:binary, e)})
+              end
+
               reqmap = Map.delete(reqmap, rid)
               {:noreply, put_in(state.reqmap, reqmap)}
 
-            {:event, callback, from} ->
-              GenServer.reply(from, data)
-
-              if match?(:ok, data) or match?({:ok, _}, data) do
-                {:noreply, put_in(state.reqmap[rid], {:event, callback})}
+            {:event, callback, from, spec, espec} ->
+              with {:ok, payload} <- data do
+                GenServer.reply(from, parse_payload(spec, payload))
+                {:noreply, put_in(state.reqmap[rid], {:event, callback, espec})}
               else
-                reqmap = Map.delete(reqmap, rid)
-                {:noreply, put_in(state.reqmap, reqmap)}
+                {:error, e} ->
+                  GenServer.reply(from, parse_payload(:binary, e))
+                  {:noreply, put_in(state.reqmap, Map.delete(reqmap, rid))}
               end
           end
         else
@@ -302,9 +261,9 @@ defmodule Session do
       "NEXT" ->
         with %{^rid => value} <- reqmap do
           case value do
-            {:event, callback} ->
+            {:event, callback, spec} ->
               with {:ok, payload} <- data do
-                callback.(payload)
+                callback.(parse_payload(spec, payload))
                 {:noreply, state}
               else
                 {:error, _reason} ->
@@ -317,7 +276,7 @@ defmodule Session do
         end
 
       "CALL" ->
-        {:ok, {key, {:binary, value}}} = data
+        {:ok, BitString.match(short_binary: :key, short_binary: :value)} = data
         %__MODULE__{socket: socket} = state
 
         with %{^key => handler} <- handlers do
