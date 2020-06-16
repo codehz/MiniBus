@@ -46,6 +46,6 @@ defmodule MiniBus.ServiceRegistry do
 
   @spec names :: [String.t()]
   def names() do
-    Registry.select(__MODULE__, [{{:_, :"$1", :_}, [{:==, :"$1", self()}], [:"$1"]}])
+    Registry.select(__MODULE__, [{{:"$1", :"$2", :_}, [{:==, :"$2", self()}], [:"$1"]}])
   end
 end

@@ -13,7 +13,6 @@ defmodule MiniBus.Client do
   defmacrop foreach_name(do: expression) do
     quote do
       for var!(name) <- MiniBus.ServiceRegistry.names() do
-        IO.inspect(var!(name), label: "name")
         unquote(expression)
       end
     end

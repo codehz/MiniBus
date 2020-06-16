@@ -19,6 +19,7 @@ defmodule MiniBus.EventStream do
 
   @spec emit({:update | :notify, String.t(), String.t()}, binary) :: :ok
   def emit({flag, service, key}, value) when flag == :update or flag == :notify do
+    IO.inspect({service, key}, label: "emit(#{flag})")
     Registry.dispatch(__MODULE__, {target_flag(flag), service, key}, &dispatch({flag, value}, &1))
   end
 
@@ -27,7 +28,6 @@ defmodule MiniBus.EventStream do
 
   @spec dispatch({:update | :notify, binary}, entries) :: :ok
   defp dispatch({flag, value}, entries) when flag == :update or flag == :notify do
-    IO.inspect(entries, label: "dispatch")
     for {pid, tag} <- entries do
       send(pid, {:event, tag, value})
     end
