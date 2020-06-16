@@ -276,7 +276,7 @@ defmodule Session do
         end
 
       "CALL" ->
-        {:ok, BitString.match(short_binary: :key, short_binary: :value)} = data
+        {:ok, BitString.match(short_binary: :key, binary: :value)} = data
         %__MODULE__{socket: socket} = state
 
         with %{^key => handler} <- handlers do

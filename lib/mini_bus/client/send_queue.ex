@@ -57,6 +57,10 @@ defmodule MiniBus.Client.SendQueue do
   defp encode_varuint(val) when val < 128, do: [val]
   defp encode_varuint(val), do: [<<1::1, val::7>> | encode_varuint(val >>> 7)]
 
+  defp encode_data([k | v]) when is_binary(v) do
+    [encode_binary(k), v] |> encode_binary()
+  end
+
   defp encode_data(data) when is_list(data) do
     Enum.map(data, &encode_data/1) |> encode_binary()
   end
