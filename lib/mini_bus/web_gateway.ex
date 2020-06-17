@@ -49,13 +49,16 @@ defmodule MiniBus.WebGateway do
 
   get "/map/:bucket" do
     conn = send_chunked(conn, 200)
+
     with {:ok, arr} <- service_command(bucket, :keys, []) do
-      Enum.reduce_while(arr, conn, fn ({acl, name}, conn) ->
-        item = case acl do
-          :public -> ["+", name, 0]
-          :protected -> ["-", name, 0]
-          :private -> []
-        end
+      Enum.reduce_while(arr, conn, fn {acl, name}, conn ->
+        item =
+          case acl do
+            :public -> ["+", name, 0]
+            :protected -> ["-", name, 0]
+            :private -> []
+          end
+
         case chunk(conn, item) do
           {:ok, conn} ->
             {:cont, conn}
@@ -98,7 +101,35 @@ defmodule MiniBus.WebGateway do
     service_command(bucket, :request, [key, value]) |> as_resp(conn)
   end
 
+  get "/observe/:bucket/:key" do
+    do_listen(:observe, bucket, key, conn)
+  end
+
+  get "/listen/:bucket/:key" do
+    do_listen(:listen, bucket, key, conn)
+  end
+
   match _ do
     send_resp(conn, 404, "oops")
+  end
+
+  defp do_listen(flag, bucket, key, conn) do
+    {:ok, _pid} = MiniBus.EventStream.listen({flag, bucket, key})
+    send_chunked(conn, 200) |> do_listen_loop()
+  end
+
+  defp do_listen_loop(conn) do
+    receive do
+      {:event, _, value} -> do_listen_try_send(conn, [0, value])
+    after
+      3_000 -> do_listen_try_send(conn, <<0>>)
+    end
+  end
+
+  defp do_listen_try_send(conn, value) do
+    case chunk(conn, value) do
+      {:ok, conn} -> do_listen_loop(conn)
+      {:error, _} -> conn
+    end
   end
 end
