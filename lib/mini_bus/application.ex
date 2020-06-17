@@ -24,7 +24,11 @@ defmodule MiniBus.Application do
 
   defp http_server() do
     with {:ok, opts} <- Application.fetch_env(:mini_bus, :http) do
-      [{Plug.Cowboy, scheme: :http, plug: MiniBus.WebGateway, options: opts}]
+      if nil == opts do
+        []
+      else
+        [{Plug.Cowboy, scheme: :http, plug: MiniBus.WebGateway, options: opts}]
+      end
     else
       _ -> []
     end
