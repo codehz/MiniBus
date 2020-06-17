@@ -21,13 +21,18 @@ jobs:
     
     - name: Cache Dependencies
       uses: actions/cache@v2.0.0
+      id: depcache
       with:
         path: deps
         key: ${{ hashFiles('mix.lock') }}
+
     - name: Install Dependencies
+      if: steps.depcache.outputs.cache-hit != 'true'
       run: mix deps.get
+
     - name: Run release
       run: mix release
+
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v1
       with:
