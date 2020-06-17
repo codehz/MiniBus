@@ -48,7 +48,23 @@ defmodule MiniBus.WebGateway do
   end
 
   get "/map/:bucket" do
-    service_command(bucket, :keys, []) |> as_resp(conn)
+    conn = send_chunked(conn, 200)
+    with {:ok, arr} <- service_command(bucket, :keys, []) do
+      Enum.reduce_while(arr, conn, fn ({acl, name}, conn) ->
+        item = case acl do
+          :public -> ["+", name, 0]
+          :protected -> ["-", name, 0]
+          :private -> []
+        end
+        case chunk(conn, item) do
+          {:ok, conn} ->
+            {:cont, conn}
+
+          {:error, :closed} ->
+            {:halt, conn}
+        end
+      end)
+    end
   end
 
   match "/map/:bucket/:key", via: :head do
