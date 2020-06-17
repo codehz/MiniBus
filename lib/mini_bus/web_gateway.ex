@@ -23,8 +23,8 @@ defmodule MiniBus.WebGateway do
     data =
       for [acl, name] <- value do
         case acl do
-          :public -> ["+", name, 0]
-          :protected -> ["-", name, 0]
+          :public -> ["+", name]
+          :protected -> ["-", name]
           :private -> []
         end
       end
