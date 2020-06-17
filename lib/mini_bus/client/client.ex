@@ -109,11 +109,8 @@ defmodule MiniBus.Client do
     %__MODULE__{storage: storage} = state
 
     case storage do
-      %{^key => tup} ->
-        {:ok, tup}
-
-      _ ->
-        {:error, :not_found}
+      %{^key => tup} -> {:ok, tup}
+      _ -> {:error, :not_found}
     end
     |> direct_reply(state)
   end
@@ -134,11 +131,8 @@ defmodule MiniBus.Client do
 
     storage =
       case storage do
-        %{^key => tup} ->
-          Map.replace!(storage, key, put_elem(tup, 1, value))
-
-        _ ->
-          Map.put_new(storage, key, {:protected, value})
+        %{^key => tup} -> Map.replace!(storage, key, put_elem(tup, 1, value))
+        _ -> Map.put_new(storage, key, {:protected, value})
       end
 
     :ok |> direct_reply(put_in(state.storage, storage))
@@ -150,11 +144,8 @@ defmodule MiniBus.Client do
 
     storage =
       case storage do
-        %{^key => tup} ->
-          Map.replace!(storage, key, put_elem(tup, 0, type))
-
-        _ ->
-          Map.put_new(storage, key, {type, <<>>})
+        %{^key => tup} -> Map.replace!(storage, key, put_elem(tup, 0, type))
+        _ -> Map.put_new(storage, key, {type, <<>>})
       end
 
     :ok |> direct_reply(put_in(state.storage, storage))
@@ -201,11 +192,9 @@ defmodule MiniBus.Client do
     %__MODULE__{storage: storage} = state
 
     case storage do
-      %{^key => {_acl, value}} ->
-        {:ok, value}
-
-      _ ->
-        {:error, :not_found}
+      %{^key => {:private, _value}} -> {:error, :not_found}
+      %{^key => {_acl, value}} -> {:ok, value}
+      _ -> {:error, :not_found}
     end
     |> direct_reply(state)
   end
@@ -241,6 +230,7 @@ defmodule MiniBus.Client do
   @impl GenServer
   def handle_call({:response, rid, value}, _from, state) do
     %__MODULE__{req_map: req_map} = state
+
     with %{^rid => target} <- req_map do
       GenServer.reply(target, {:ok, value})
       {:reply, :ok, put_in(state.req_map, Map.delete(req_map, rid))}
@@ -252,6 +242,7 @@ defmodule MiniBus.Client do
   @impl GenServer
   def handle_call({:exception, rid, value}, _from, state) do
     %__MODULE__{req_map: req_map} = state
+
     with %{^rid => target} <- req_map do
       GenServer.reply(target, {:error, value})
       {:reply, :ok, put_in(state.req_map, Map.delete(req_map, rid))}
