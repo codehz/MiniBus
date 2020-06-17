@@ -32,4 +32,4 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: dev
-        path: _build/dev
+        path: _build/dev/
