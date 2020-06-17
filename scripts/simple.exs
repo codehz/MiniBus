@@ -294,12 +294,29 @@ defmodule Session do
   end
 end
 
+defmodule Generator do
+  @alphabet Enum.concat([?0..?9, ?A..?Z, ?a..?z])
+
+  def randstring(count) do
+    :rand.seed(:exsplus, :os.timestamp())
+
+    Stream.repeatedly(&random_char_from_alphabet/0)
+    |> Enum.take(count)
+    |> List.to_string()
+  end
+
+  defp random_char_from_alphabet() do
+    Enum.random(@alphabet)
+  end
+end
+
 port = Application.fetch_env!(:mini_bus, :port)
 
 {:ok, sess} = Session.start_link('127.0.0.1', port)
 {:ok, client} = Session.start_link('127.0.0.1', port)
 
-Session.register_handler(sess, "test", fn _ -> "boom" end)
+Session.register_handler(sess, "test", fn _ -> Generator.randstring(300) end)
+
 Session.ping(sess, "test") |> IO.inspect(label: "ping")
 Session.ping(client, "test") |> IO.inspect(label: "ping")
 Session.observe(client, &IO.inspect(&1, label: "new client"), "registry", "sess")

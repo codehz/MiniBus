@@ -23,7 +23,9 @@ defmodule MiniBus.MixProject do
   defp deps do
     [
       {:monad_cps, "~> 0.1.0"},
-      {:typed_struct, "~> 0.1.4"}
+      {:typed_struct, "~> 0.1.4"},
+      {:plug_cowboy, "~> 2.0"},
+      {:cors_plug, "~> 2.0"},
     ]
   end
 end
