@@ -5,7 +5,7 @@ defmodule MiniBus.Application do
 
   @spec start(any, any) :: {:error, any} | {:ok, pid}
   def start(_type, _args) do
-    port = Application.fetch_env!(:mini_bus, :port)
+    listen = Application.fetch_env!(:mini_bus, :listen)
 
     children =
       [
@@ -15,7 +15,7 @@ defmodule MiniBus.Application do
         MiniBus.Builtin.RegistryProxy,
         MiniBus.Builtin.Shared,
         MiniBus.Gateway.TaskSupervisor.get_spec(),
-        {MiniBus.Gateway, port}
+        {MiniBus.Gateway, listen}
       ] ++ http_server()
 
     opts = [strategy: :one_for_one, name: MiniBus.Supervisor]

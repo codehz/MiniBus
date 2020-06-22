@@ -5,14 +5,16 @@ defmodule MiniBus.Gateway do
   @doc """
   Starts the gateway
   """
-  def start_link(port) do
-    GenServer.start_link(__MODULE__, port, name: __MODULE__)
+  def start_link(cfg) do
+    GenServer.start_link(__MODULE__, cfg, name: __MODULE__)
   end
 
   @impl GenServer
-  @spec init(char) :: {:ok, port, {:continue, :ok}}
-  def init(port) do
-    {:ok, socket} = :gen_tcp.listen(port, [:binary, packet: :raw, active: false, reuseaddr: true])
+  @spec init({number, any}) :: {:ok, port, {:continue, :ok}}
+  def init({port, opts}) do
+    {:ok, socket} =
+      :gen_tcp.listen(port, [:binary, packet: :raw, active: false, reuseaddr: true] ++ opts)
+
     {:ok, socket, {:continue, :ok}}
   end
 
