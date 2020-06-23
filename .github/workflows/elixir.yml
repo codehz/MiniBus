@@ -8,8 +8,11 @@ on:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v2
@@ -36,5 +39,5 @@ jobs:
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v1
       with:
-        name: dev
+        name: dev-${{ matrix.os }}
         path: _build/dev/rel/mini_bus
