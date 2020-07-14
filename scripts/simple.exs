@@ -70,7 +70,7 @@ defmodule Session do
 
   defstruct socket: nil, reqmap: %{}, handlers: %{}
 
-  def start_link(ip, port) do
+  def start_link(ip, {port, _}) do
     {:ok, socket} = :gen_tcp.connect(ip, port, [:binary, packet: :raw, active: false])
     :ok = :gen_tcp.send(socket, <<"MINIBUS", 0>>)
     {:ok, "OK"} = :gen_tcp.recv(socket, 2)
@@ -310,10 +310,10 @@ defmodule Generator do
   end
 end
 
-port = Application.fetch_env!(:mini_bus, :port)
+listen = Application.fetch_env!(:mini_bus, :listen)
 
-{:ok, sess} = Session.start_link('127.0.0.1', port)
-{:ok, client} = Session.start_link('127.0.0.1', port)
+{:ok, sess} = Session.start_link('127.0.0.1', listen)
+{:ok, client} = Session.start_link('127.0.0.1', listen)
 
 Session.register_handler(sess, "test", fn _ -> Generator.randstring(300) end)
 
